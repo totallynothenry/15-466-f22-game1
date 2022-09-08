@@ -2,11 +2,12 @@
 #include "Mode.hpp"
 
 #include "Player.hpp"
+#include "Projectile.hpp"
 
 #include <glm/glm.hpp>
 
-#include <vector>
 #include <deque>
+#include <vector>
 
 struct PlayMode : Mode {
 	PlayMode();
@@ -30,6 +31,10 @@ struct PlayMode : Mode {
 
 	//Player:
 	Player player;
+
+	//Projectiles
+	std::vector< Projectile > projectiles;
+	std::vector< Projectile > huge_laser;
 
 	//----- drawing handled by PPU466 -----
 

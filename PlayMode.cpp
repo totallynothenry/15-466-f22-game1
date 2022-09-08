@@ -11,22 +11,41 @@
 //for glm::value_ptr() :
 #include <glm/gtc/type_ptr.hpp>
 
+#include <iostream>
 #include <random>
 #include <unordered_set>
 
+#define MISC_TILE_IDX 0
+#define MISC_PALETTE_IDX 0
+
+#define LASERS_TILE_IDX 1
+#define LASERS_PALETTE_IDX 2
+
+#define BOMBS_TILE_IDX 3
+#define BOMBS_PALETTE_IDX 1
+
+#define EXPLOSION_TILE_IDX 7
+#define EXPLOSION_PALETTE_IDX 3
+
 #define PLAYER_TILE_IDX 32
-#define PLAYER_PALETTE_IDX 7
+#define PLAYER_PALETTE_IDX 4
 
 #define ENEMY_TILE_IDX 64
 #define ENEMY_PALETTE_IDX 5
 
 #define ROAD_TILE_IDX 128
-#define ROAD_PALETTE_IDX 0
+#define ROAD_PALETTE_IDX 6
 #define ROAD_PALETTE_MAX (ROAD_PALETTE_IDX << 8)
 
 #define WATER_TILE_IDX 192
-#define WATER_PALETTE_IDX 1
+#define WATER_PALETTE_IDX 7
 #define WATER_PALETTE_MAX (WATER_PALETTE_IDX << 8)
+
+#define HIDE_X 0
+#define HIDE_Y 400
+#define UPDATES_PER_FRAME 50
+
+#define LOG( X ) std::cerr << X << std::endl
 
 
 static Load< TileSet > player_tileset(LoadTagDefault, [&](){
@@ -82,6 +101,63 @@ static float background_x = 0;
 
 static std::unordered_set< uint8_t > enemy_ignore_idx;
 
+static int attack_count = 0;
+
+
+static uint8_t get_projectile_tile_idx(Projectile::Type type, uint8_t frame) {
+	switch (type) {
+	default:
+		//fall through
+	case Projectile::Type::Warn:
+		return MISC_TILE_IDX;
+	case Projectile::Type::Laser:
+		return LASERS_TILE_IDX;
+	case Projectile::Type::HugeLaser:
+		return LASERS_TILE_IDX + 1;
+	case Projectile::Type::BombReflect:
+		return BOMBS_TILE_IDX + (frame % 2);
+	case Projectile::Type::Bomb:
+		return BOMBS_TILE_IDX + 2 + (frame % 2);
+	case Projectile::Type::Explosion:
+		return EXPLOSION_TILE_IDX + (frame % 6);
+	}
+}
+
+static uint8_t get_projectile_palette_idx(Projectile::Type type) {
+	switch (type) {
+	default:
+		//fall through
+	case Projectile::Type::Warn:
+		return MISC_TILE_IDX;
+	case Projectile::Type::Laser:
+		//fall through
+	case Projectile::Type::HugeLaser:
+		return LASERS_PALETTE_IDX;
+	case Projectile::Type::BombReflect:
+		//fall through
+	case Projectile::Type::Bomb:
+		return BOMBS_PALETTE_IDX;
+	case Projectile::Type::Explosion:
+		return EXPLOSION_PALETTE_IDX;
+	}
+}
+
+static float get_projectile_vel(Projectile::Type type) {
+	switch (type) {
+	case Projectile::Type::Warn:
+		//fall through
+	case Projectile::Type::Laser:
+		//fall through
+	case Projectile::Type::HugeLaser:
+		return -80.0f;
+	case Projectile::Type::BombReflect:
+		//fall through
+	case Projectile::Type::Bomb:
+		return -20.0f;
+	default:
+		return 0.0f;
+	}
+}
 
 PlayMode::PlayMode() {
 	{ //Setup player tile and palette
@@ -89,7 +165,7 @@ PlayMode::PlayMode() {
 		ppu.tile_table[PLAYER_TILE_IDX] = player_tileset->tiles[0];
 	}
 
-	{ //Setup enemy
+	{ //Setup enemy (this uses up 64 tiles and 56 sprites!)
 		ppu.palette_table[ENEMY_PALETTE_IDX] = enemy_tileset->palette;
 		int idx = ENEMY_TILE_IDX;
 		for (auto &tile : enemy_tileset->tiles) {
@@ -109,7 +185,42 @@ PlayMode::PlayMode() {
 	}
 
 	{ //Setup bombs, lasers, misc, and explosion
+		Projectile::Type type = Projectile::Type::Warn;
+		ppu.palette_table[MISC_PALETTE_IDX] = misc_tileset->palette;
+		ppu.tile_table[MISC_TILE_IDX] = misc_tileset->tiles[0];
+		projectiles.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
 
+		type = Projectile::Type::Laser;
+		ppu.palette_table[LASERS_PALETTE_IDX] = lasers_tileset->palette;
+		ppu.tile_table[LASERS_TILE_IDX] = lasers_tileset->tiles[0];
+		ppu.tile_table[LASERS_TILE_IDX + 1] = lasers_tileset->tiles[1];
+		projectiles.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
+		projectiles.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
+		type = Projectile::Type::HugeLaser;
+		for (int i = 0; i < 7; i++) {
+			huge_laser.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
+		}
+
+		ppu.palette_table[BOMBS_PALETTE_IDX] = bombs_tileset->palette;
+		int idx = BOMBS_TILE_IDX;
+		for (auto &tile : bombs_tileset->tiles) {
+			ppu.tile_table[idx] = tile;
+			idx++;
+		}
+		type = Projectile::Type::Bomb;
+		projectiles.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
+		type = Projectile::Type::BombReflect;
+		projectiles.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
+
+		ppu.palette_table[EXPLOSION_PALETTE_IDX] = explosion_tileset->palette;
+		idx = EXPLOSION_TILE_IDX;
+		for (auto &tile : explosion_tileset->tiles) {
+			ppu.tile_table[idx] = tile;
+			idx++;
+		}
+		type = Projectile::Type::Explosion;
+		projectiles.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
+		projectiles.emplace_back(Projectile(HIDE_X, HIDE_Y, get_projectile_vel(type), type, true));
 	}
 
 	{ //Setup background map
@@ -166,69 +277,6 @@ PlayMode::PlayMode() {
 			}
 		}
 	}
-	//TODO:
-	// you *must* use an asset pipeline of some sort to generate tiles.
-	// don't hardcode them like this!
-	// or, at least, if you do hardcode them like this,
-	//  make yourself a script that spits out the code that you paste in here
-	//   and check that script into your repository.
-
-	//Also, *don't* use these tiles in your game:
-
-	{ //use tiles 0-16 as some weird dot pattern thing:
-		std::array< uint8_t, 8*8 > distance;
-		for (uint32_t y = 0; y < 8; ++y) {
-			for (uint32_t x = 0; x < 8; ++x) {
-				float d = glm::length(glm::vec2((x + 0.5f) - 4.0f, (y + 0.5f) - 4.0f));
-				d /= glm::length(glm::vec2(4.0f, 4.0f));
-				distance[x+8*y] = uint8_t(std::max(0,std::min(255,int32_t( 255.0f * d ))));
-			}
-		}
-		for (uint32_t index = 0; index < 16; ++index) {
-			PPU466::Tile tile;
-			uint8_t t = uint8_t((255 * index) / 16);
-			for (uint32_t y = 0; y < 8; ++y) {
-				uint8_t bit0 = 0;
-				uint8_t bit1 = 0;
-				for (uint32_t x = 0; x < 8; ++x) {
-					uint8_t d = distance[x+8*y];
-					if (d > t) {
-						bit0 |= (1 << x);
-					} else {
-						bit1 |= (1 << x);
-					}
-				}
-				tile.bit0[y] = bit0;
-				tile.bit1[y] = bit1;
-			}
-			ppu.tile_table[index] = tile;
-		}
-	}
-
-	//makes the outside of tiles 0-16 solid:
-	// ppu.palette_table[0] = {
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	// };
-
-	//makes the center of tiles 0-16 solid:
-	// ppu.palette_table[1] = {
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	// };
-
-	//used for the misc other sprites:
-	ppu.palette_table[6] = {
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x88, 0x88, 0xff, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	};
-
 }
 
 PlayMode::~PlayMode() {
@@ -284,19 +332,67 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed) {
 
-	constexpr float PlayerSpeed = 45.0f;
-
 	//Make it look like player constantly advances left
-	background_x += (PlayerSpeed * 3.0f) * elapsed;
+	float drift = player.speed * 3.0f;
+	background_x += drift * elapsed;
 
-	if (left.pressed) player.pos.x -= PlayerSpeed * elapsed;
-	if (right.pressed) player.pos.x += (PlayerSpeed / 2.0f) * elapsed;
-	if (down.pressed) player.pos.y -= (PlayerSpeed / 2.0f) * elapsed;
-	if (up.pressed) player.pos.y += (PlayerSpeed / 2.0f) * elapsed;
+	int8_t player_offset = PPU466::ScreenHeight / 2 - 4 - int8_t(player.pos.y);
 
-	//Binder the player to within the road
-	player.pos.x = std::min(std::max(player.pos.x, 0.0f), 208.0f);
-	player.pos.y = std::min(std::max(player.pos.y, 87.0f), 145.0f);
+	if (attack_count < 2) {
+		attack_count++;
+
+		//Randomly select a bomb or laser to spawn from the enemy
+		//For reference: 1 -- Laser, 2 -- Laser, 3 -- Bomb, 4 -- BombReflect
+		int idx = std::rand() % 4;
+		while (!projectiles[idx + 1].hidden) {
+			idx = (idx + 1) % 4;
+		}
+		Projectile &projectile = projectiles[idx + 1];
+		projectile.pos.x = (float)(PPU466::ScreenWidth - 8);
+		//Subtracting player_offset is a hack, but it's the easiest solution
+		projectile.pos.y = player.pos.y - player_offset + std::rand() % 16 - 8;
+		projectile.vel = get_projectile_vel(projectile.type);
+		projectile.update_cnt = 0;
+		projectile.hidden = false;
+	}
+
+	player.update(left.pressed, right.pressed, down.pressed, up.pressed, elapsed);
+
+	for (auto &projectile : projectiles) {
+		bool contact = !projectile.hidden
+			&& projectile.can_explode()
+			&& player.check_collide(projectile);
+		if (projectile.update(elapsed, contact, -drift)) {
+			//Place an explosion if needed and possible
+			if (projectile.can_explode()) {
+				attack_count--;
+
+				Projectile &explosion = projectiles[5];
+				if (!explosion.hidden) {
+					explosion = projectiles[6];
+				}
+
+				//There's an edge case where 2 explosions are on screen, and the player
+				//somehow immediately triggers a third before the other two finish. It's left unhandled
+				//since it'll just be a visual bug due to PPU466 sprite count limitations. Currently,
+				//the code will refuse to try to spawn the third explosion.
+
+				if (explosion.hidden && projectile.pos.x >= 0) {
+					explosion.pos.x = projectile.pos.x;
+					explosion.pos.y = projectile.pos.y;
+					explosion.update_cnt = 0;
+					explosion.hidden = false;
+
+					// LOG("explosion at " << explosion.pos.x << " " << explosion.pos.y << " from " << projectile.type);
+				}
+			}
+
+			//Hide this projectile
+			projectile.pos.x = HIDE_X;
+			projectile.pos.y = HIDE_Y;
+			projectile.hidden = true;
+		}
+	}
 
 	//reset button press counters:
 	left.downs = 0;
@@ -311,15 +407,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	//background color is the first color in water palette
 	ppu.background_color = glm::u8vec4(33,49,117,255);
 
-	//tilemap gets recomputed every frame as some weird plasma thing:
-	//NOTE: don't do this in your game! actually make a map or something :-)
-	// for (uint32_t y = 0; y < PPU466::BackgroundHeight; ++y) {
-	// 	for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
-	// 		//TODO: make weird plasma thing
-	// 		ppu.background[x+PPU466::BackgroundWidth*y] = ((x+y)%16);
-	// 	}
-	// }
-
 	//background scroll:
 	ppu.background_position.x = int32_t(-background_x -player.pos.x);
 	ppu.background_position.y = int32_t(-player.pos.y - 4);
@@ -333,10 +420,13 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	ppu.sprites[sprite_idx].attributes = PLAYER_PALETTE_IDX;
 	sprite_idx++;
 
-	//enemy sprites (64 sprites that aggregate into the massive enemy)
+	int8_t player_offset = PPU466::ScreenHeight / 2 - 4 - int8_t(player.pos.y);
+
+	//enemy sprites (56 sprites that aggregate into the massive enemy)
 	uint8_t enemy_x_offset = 224;
-	uint8_t enemy_y_offset = 56 - int8_t(player.pos.y) + PPU466::ScreenHeight / 2 - 4;
+	uint8_t enemy_y_offset = 56 + player_offset;
 	for (uint8_t i = 0; i < 64; i++) {
+		assert(sprite_idx < 64);
 		if (i > 0 && i % 4 == 0) {
 			enemy_x_offset = 224;
 			enemy_y_offset += 8;
@@ -351,6 +441,18 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 		}
 
 		enemy_x_offset += 8;
+	}
+
+	//all other sprites (bombs, lasers, explosions, misc)
+	for (auto &projectile : projectiles) {
+		assert(sprite_idx < 64);
+		ppu.sprites[sprite_idx].x = int8_t(projectile.pos.x);
+		ppu.sprites[sprite_idx].y = int8_t(projectile.pos.y) + player_offset;
+		ppu.sprites[sprite_idx].index =
+			get_projectile_tile_idx(projectile.type, projectile.update_cnt / UPDATES_PER_FRAME);
+		ppu.sprites[sprite_idx].attributes =
+			get_projectile_palette_idx(projectile.type) | (projectile.hidden << 7);
+		sprite_idx++;
 	}
 
 	//--- actually draw ---

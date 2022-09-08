@@ -102,6 +102,7 @@ if (maek.OS === 'windows') {
 const game_objs = [
 	maek.CPP('TileSet.cpp'),
 	maek.CPP('Player.cpp'),
+	maek.CPP('Projectile.cpp'),
 	maek.CPP('PlayMode.cpp'),
 	maek.CPP('PPU466.cpp'),
 	maek.CPP('main.cpp'),
