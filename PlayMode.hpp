@@ -1,6 +1,8 @@
 #include "PPU466.hpp"
 #include "Mode.hpp"
 
+#include "Player.hpp"
+
 #include <glm/glm.hpp>
 
 #include <vector>
@@ -26,8 +28,8 @@ struct PlayMode : Mode {
 	//some weird background animation:
 	float background_fade = 0.0f;
 
-	//player position:
-	glm::vec2 player_at = glm::vec2(0.0f);
+	//Player:
+	Player player;
 
 	//----- drawing handled by PPU466 -----
 

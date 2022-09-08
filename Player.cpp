@@ -14,10 +14,3 @@ bool Player::check_collide(PPU466::Tile projectile, glm::vec2 ppos) {
 	//TODO
 	return false;
 }
-
-
-const TileSet *player_load_function() {
-	//Load the player tileset
-	const TileSet *ts(new TileSet(data_path("resources/ppu4_player.csv")));
-	return ts;
-}

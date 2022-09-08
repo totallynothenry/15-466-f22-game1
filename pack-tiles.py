@@ -57,12 +57,17 @@ def bitpack(tile):
     '''
     Bitpack an 8x8 uint2 tile into 2 arrays of 8 uint8
     '''
-    binary = np.unpackbits(tile[:, ::-1, None], axis=2)[:,:,6:] # 8x8x2 bits
+    binary = np.unpackbits(
+        tile[:, ::-1, None],
+        axis=2,
+        bitorder='little')[:,:,:2] # 8x8x2
     if DEBUG:
+        print(tile[:, ::-1])
         print(binary[:,:,0])
         print(binary[:,:,1])
     bit0 = np.packbits(binary[:,:,0], axis=1).flatten()
     bit1 = np.packbits(binary[:,:,1], axis=1).flatten()
+
     packed = np.hstack([bit0, bit1])
     if DEBUG:
         print(packed)

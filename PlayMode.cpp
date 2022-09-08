@@ -1,7 +1,7 @@
 #include "PlayMode.hpp"
 
+#include "data_path.hpp"
 #include "Load.hpp"
-#include "Player.hpp"
 #include "TileSet.hpp"
 
 
@@ -13,14 +13,138 @@
 
 #include <random>
 
+#define PLAYER_TILE_IDX 32
+#define PLAYER_PALETTE_IDX 7
 
-Load< TileSet > player_tileset(LoadTagDefault, player_load_function);
+#define ROAD_TILE_IDX 64
+#define ROAD_PALETTE_IDX 0
+#define ROAD_PALETTE_MAX (ROAD_PALETTE_IDX << 8)
+
+#define WATER_TILE_IDX 128
+#define WATER_PALETTE_IDX 1
+#define WATER_PALETTE_MAX (WATER_PALETTE_IDX << 8)
+
+
+static Load< TileSet > player_tileset(LoadTagDefault, [&](){
+	//Load the player tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_player.csv")));
+	return ts;
+});
+
+static Load< TileSet > enemy_tileset(LoadTagDefault, [&](){
+	//Load the road tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_enemy.csv")));
+	return ts;
+});
+
+static Load< TileSet > bombs_tileset(LoadTagDefault, [&](){
+	//Load the road tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_bombs.csv")));
+	return ts;
+});
+
+static Load< TileSet > lasers_tileset(LoadTagDefault, [&](){
+	//Load the road tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_lasers.csv")));
+	return ts;
+});
+
+static Load< TileSet > misc_tileset(LoadTagDefault, [&](){
+	//Load the road tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_misc.csv")));
+	return ts;
+});
+
+static Load< TileSet > explosion_tileset(LoadTagDefault, [&](){
+	//Load the road tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_explosion.csv")));
+	return ts;
+});
+
+static Load< TileSet > road_tileset(LoadTagDefault, [&](){
+	//Load the road tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_road_tiles.csv")));
+	return ts;
+});
+
+static Load< TileSet > water_tileset(LoadTagDefault, [&](){
+	//Load the water tileset
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_water_tiles.csv")));
+	return ts;
+});
+
+
+static float background_x = 0;
+
 
 
 PlayMode::PlayMode() {
 	{ //Setup player tile and palette
-		ppu.tile_table[32] = player_tileset->tiles[0];
-		ppu.palette_table[7] = player_tileset->palette;
+		ppu.palette_table[PLAYER_PALETTE_IDX] = player_tileset->palette;
+		ppu.tile_table[PLAYER_TILE_IDX] = player_tileset->tiles[0];
+	}
+
+	{ //Setup enemy
+
+	}
+
+	{ //Setup bombs, lasers, misc, and explosion
+
+	}
+
+	{ //Setup background map
+		ppu.palette_table[ROAD_PALETTE_IDX] = road_tileset->palette;
+		int idx = ROAD_TILE_IDX;
+		for (auto &tile : road_tileset->tiles) {
+			ppu.tile_table[idx] = tile;
+			idx++;
+		}
+		ppu.palette_table[WATER_PALETTE_IDX] = water_tileset->palette;
+		idx = WATER_TILE_IDX;
+		for (auto &tile : water_tileset->tiles) {
+			ppu.tile_table[idx] = tile;
+			idx++;
+		}
+
+		//Map is as follows (R is road, W is water):
+		//22 rows of water, randomly selected
+		//16 rows of road, equating to 8 lanes of 2 rows each
+		//22 rows of water, randomly selected
+
+		//Water on both sides
+		for (uint32_t y = 0; y < 22; ++y) {
+			for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
+				ppu.background[x+PPU466::BackgroundWidth*y] =
+					(std::rand() % 64 + WATER_TILE_IDX) | WATER_PALETTE_MAX;
+			}
+		}
+		for (uint32_t y = 38; y < PPU466::BackgroundHeight; ++y) {
+			for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
+				ppu.background[x+PPU466::BackgroundWidth*y] =
+					(std::rand() % 64 + WATER_TILE_IDX) | WATER_PALETTE_MAX;
+			}
+		}
+
+		// Upper road edge
+		for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
+			ppu.background[x+PPU466::BackgroundWidth*22] =
+				(std::rand() % 16 + ROAD_TILE_IDX + 32) | ROAD_PALETTE_MAX;
+		}
+
+		// Lower road edge
+		for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
+			ppu.background[x+PPU466::BackgroundWidth*37] =
+				(std::rand() % 16 + ROAD_TILE_IDX + 48) | ROAD_PALETTE_MAX;
+		}
+
+		// Road internals
+		for (uint32_t y = 23; y < 37; ++y) {
+			uint16_t offset = y % 2 == 0 ? 16 : 0;
+			for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
+				ppu.background[x+PPU466::BackgroundWidth*y] =
+					(std::rand() % 16 + ROAD_TILE_IDX + offset) | ROAD_PALETTE_MAX;
+			}
+		}
 	}
 	//TODO:
 	// you *must* use an asset pipeline of some sort to generate tiles.
@@ -61,48 +185,18 @@ PlayMode::PlayMode() {
 		}
 	}
 
-	//use sprite 32 as a "player":
-	// ppu.tile_table[32].bit0 = {
-	// 	0b01111110,
-	// 	0b11111111,
-	// 	0b11111111,
-	// 	0b11111111,
-	// 	0b11111111,
-	// 	0b11111111,
-	// 	0b11111111,
-	// 	0b01111110,
-	// };
-	// ppu.tile_table[32].bit1 = {
-	// 	0b00000000,
-	// 	0b00000000,
-	// 	0b00011000,
-	// 	0b00100100,
-	// 	0b00000000,
-	// 	0b00100100,
-	// 	0b00000000,
-	// 	0b00000000,
-	// };
-
 	//makes the outside of tiles 0-16 solid:
-	ppu.palette_table[0] = {
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	};
+	// ppu.palette_table[0] = {
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+	// };
 
 	//makes the center of tiles 0-16 solid:
-	ppu.palette_table[1] = {
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	};
-
-	//used for the player:
-	// ppu.palette_table[7] = {
+	// ppu.palette_table[1] = {
 	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	// 	glm::u8vec4(0xff, 0xff, 0x00, 0xff),
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
 	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
 	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
 	// };
@@ -118,8 +212,15 @@ PlayMode::PlayMode() {
 }
 
 PlayMode::~PlayMode() {
-	//Ideally, should not delete here since wasn't allocated here. This works though...
+	//Ideally, should not delete here since wasn't allocated here. Works though...
 	delete (const TileSet *)player_tileset;
+	delete (const TileSet *)enemy_tileset;
+	delete (const TileSet *)bombs_tileset;
+	delete (const TileSet *)lasers_tileset;
+	delete (const TileSet *)misc_tileset;
+	delete (const TileSet *)explosion_tileset;
+	delete (const TileSet *)road_tileset;
+	delete (const TileSet *)water_tileset;
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
@@ -163,16 +264,19 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed) {
 
-	//slowly rotates through [0,1):
-	// (will be used to set background color)
-	background_fade += elapsed / 10.0f;
-	background_fade -= std::floor(background_fade);
+	constexpr float PlayerSpeed = 45.0f;
 
-	constexpr float PlayerSpeed = 30.0f;
-	if (left.pressed) player_at.x -= PlayerSpeed * elapsed;
-	if (right.pressed) player_at.x += PlayerSpeed * elapsed;
-	if (down.pressed) player_at.y -= PlayerSpeed * elapsed;
-	if (up.pressed) player_at.y += PlayerSpeed * elapsed;
+	//Make it look like player constantly advances left
+	background_x += (PlayerSpeed * 3.0f) * elapsed;
+
+	if (left.pressed) player.pos.x -= PlayerSpeed * elapsed;
+	if (right.pressed) player.pos.x += PlayerSpeed * elapsed;
+	if (down.pressed) player.pos.y -= (PlayerSpeed / 2.0f) * elapsed;
+	if (up.pressed) player.pos.y += (PlayerSpeed / 2.0f) * elapsed;
+
+	//Binder the player to within the road
+	player.pos.x = std::min(std::max(player.pos.x, 0.0f), 216.0f);
+	player.pos.y = std::min(std::max(player.pos.y, 87.0f), 145.0f);
 
 	//reset button press counters:
 	left.downs = 0;
@@ -184,38 +288,33 @@ void PlayMode::update(float elapsed) {
 void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	//--- set ppu state based on game state ---
 
-	//background color will be some hsv-like fade:
-	ppu.background_color = glm::u8vec4(
-		std::min(255,std::max(0,int32_t(255 * 0.5f * (0.5f + std::sin( 2.0f * M_PI * (background_fade + 0.0f / 3.0f) ) ) ))),
-		std::min(255,std::max(0,int32_t(255 * 0.5f * (0.5f + std::sin( 2.0f * M_PI * (background_fade + 1.0f / 3.0f) ) ) ))),
-		std::min(255,std::max(0,int32_t(255 * 0.5f * (0.5f + std::sin( 2.0f * M_PI * (background_fade + 2.0f / 3.0f) ) ) ))),
-		0xff
-	);
+	//background color is the first color in water palette
+	ppu.background_color = glm::u8vec4(33,49,117,255);
 
 	//tilemap gets recomputed every frame as some weird plasma thing:
 	//NOTE: don't do this in your game! actually make a map or something :-)
-	for (uint32_t y = 0; y < PPU466::BackgroundHeight; ++y) {
-		for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
-			//TODO: make weird plasma thing
-			ppu.background[x+PPU466::BackgroundWidth*y] = ((x+y)%16);
-		}
-	}
+	// for (uint32_t y = 0; y < PPU466::BackgroundHeight; ++y) {
+	// 	for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
+	// 		//TODO: make weird plasma thing
+	// 		ppu.background[x+PPU466::BackgroundWidth*y] = ((x+y)%16);
+	// 	}
+	// }
 
 	//background scroll:
-	ppu.background_position.x = int32_t(-0.5f * player_at.x);
-	ppu.background_position.y = int32_t(-0.5f * player_at.y);
+	ppu.background_position.x = int32_t(-background_x -player.pos.x);
+	ppu.background_position.y = int32_t(-player.pos.y - 4);
 
 	//player sprite:
-	ppu.sprites[0].x = int8_t(player_at.x);
-	ppu.sprites[0].y = int8_t(player_at.y);
-	ppu.sprites[0].index = 32;
-	ppu.sprites[0].attributes = 7;
+	ppu.sprites[0].x = int8_t(player.pos.x);
+	ppu.sprites[0].y = int8_t(player.pos.y);
+	ppu.sprites[0].index = PLAYER_TILE_IDX;
+	ppu.sprites[0].attributes = PLAYER_PALETTE_IDX;
 
 	//some other misc sprites:
 	for (uint32_t i = 1; i < 63; ++i) {
 		float amt = (i + 2.0f * background_fade) / 62.0f;
-		ppu.sprites[i].x = int8_t(0.5f * PPU466::ScreenWidth + std::cos( 2.0f * M_PI * amt * 5.0f + 0.01f * player_at.x) * 0.4f * PPU466::ScreenWidth);
-		ppu.sprites[i].y = int8_t(0.5f * PPU466::ScreenHeight + std::sin( 2.0f * M_PI * amt * 3.0f + 0.01f * player_at.y) * 0.4f * PPU466::ScreenWidth);
+		ppu.sprites[i].x = int8_t(0.5f * PPU466::ScreenWidth + std::cos( 2.0f * M_PI * amt * 5.0f + 0.01f * player.pos.x) * 0.4f * PPU466::ScreenWidth);
+		ppu.sprites[i].y = int8_t(0.5f * PPU466::ScreenHeight + std::sin( 2.0f * M_PI * amt * 3.0f + 0.01f * player.pos.y) * 0.4f * PPU466::ScreenWidth);
 		ppu.sprites[i].index = 32;
 		ppu.sprites[i].attributes = 6;
 		if (i % 2) ppu.sprites[i].attributes |= 0x80; //'behind' bit
