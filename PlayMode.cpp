@@ -12,15 +12,19 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <random>
+#include <unordered_set>
 
 #define PLAYER_TILE_IDX 32
 #define PLAYER_PALETTE_IDX 7
 
-#define ROAD_TILE_IDX 64
+#define ENEMY_TILE_IDX 64
+#define ENEMY_PALETTE_IDX 5
+
+#define ROAD_TILE_IDX 128
 #define ROAD_PALETTE_IDX 0
 #define ROAD_PALETTE_MAX (ROAD_PALETTE_IDX << 8)
 
-#define WATER_TILE_IDX 128
+#define WATER_TILE_IDX 192
 #define WATER_PALETTE_IDX 1
 #define WATER_PALETTE_MAX (WATER_PALETTE_IDX << 8)
 
@@ -76,6 +80,7 @@ static Load< TileSet > water_tileset(LoadTagDefault, [&](){
 
 static float background_x = 0;
 
+static std::unordered_set< uint8_t > enemy_ignore_idx;
 
 
 PlayMode::PlayMode() {
@@ -85,7 +90,22 @@ PlayMode::PlayMode() {
 	}
 
 	{ //Setup enemy
+		ppu.palette_table[ENEMY_PALETTE_IDX] = enemy_tileset->palette;
+		int idx = ENEMY_TILE_IDX;
+		for (auto &tile : enemy_tileset->tiles) {
+			ppu.tile_table[idx] = tile;
+			idx++;
+		}
 
+		enemy_ignore_idx.insert(0);
+		enemy_ignore_idx.insert(1);
+		enemy_ignore_idx.insert(4);
+		enemy_ignore_idx.insert(8);
+
+		enemy_ignore_idx.insert(52);
+		enemy_ignore_idx.insert(56);
+		enemy_ignore_idx.insert(60);
+		enemy_ignore_idx.insert(61);
 	}
 
 	{ //Setup bombs, lasers, misc, and explosion
@@ -270,12 +290,12 @@ void PlayMode::update(float elapsed) {
 	background_x += (PlayerSpeed * 3.0f) * elapsed;
 
 	if (left.pressed) player.pos.x -= PlayerSpeed * elapsed;
-	if (right.pressed) player.pos.x += PlayerSpeed * elapsed;
+	if (right.pressed) player.pos.x += (PlayerSpeed / 2.0f) * elapsed;
 	if (down.pressed) player.pos.y -= (PlayerSpeed / 2.0f) * elapsed;
 	if (up.pressed) player.pos.y += (PlayerSpeed / 2.0f) * elapsed;
 
 	//Binder the player to within the road
-	player.pos.x = std::min(std::max(player.pos.x, 0.0f), 216.0f);
+	player.pos.x = std::min(std::max(player.pos.x, 0.0f), 208.0f);
 	player.pos.y = std::min(std::max(player.pos.y, 87.0f), 145.0f);
 
 	//reset button press counters:
@@ -304,20 +324,33 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	ppu.background_position.x = int32_t(-background_x -player.pos.x);
 	ppu.background_position.y = int32_t(-player.pos.y - 4);
 
-	//player sprite:
-	ppu.sprites[0].x = int8_t(player.pos.x);
-	ppu.sprites[0].y = int8_t(player.pos.y);
-	ppu.sprites[0].index = PLAYER_TILE_IDX;
-	ppu.sprites[0].attributes = PLAYER_PALETTE_IDX;
+	uint32_t sprite_idx = 0;
 
-	//some other misc sprites:
-	for (uint32_t i = 1; i < 63; ++i) {
-		float amt = (i + 2.0f * background_fade) / 62.0f;
-		ppu.sprites[i].x = int8_t(0.5f * PPU466::ScreenWidth + std::cos( 2.0f * M_PI * amt * 5.0f + 0.01f * player.pos.x) * 0.4f * PPU466::ScreenWidth);
-		ppu.sprites[i].y = int8_t(0.5f * PPU466::ScreenHeight + std::sin( 2.0f * M_PI * amt * 3.0f + 0.01f * player.pos.y) * 0.4f * PPU466::ScreenWidth);
-		ppu.sprites[i].index = 32;
-		ppu.sprites[i].attributes = 6;
-		if (i % 2) ppu.sprites[i].attributes |= 0x80; //'behind' bit
+	//player sprite:
+	ppu.sprites[sprite_idx].x = int8_t(player.pos.x);
+	ppu.sprites[sprite_idx].y = int8_t(player.pos.y);
+	ppu.sprites[sprite_idx].index = PLAYER_TILE_IDX;
+	ppu.sprites[sprite_idx].attributes = PLAYER_PALETTE_IDX;
+	sprite_idx++;
+
+	//enemy sprites (64 sprites that aggregate into the massive enemy)
+	uint8_t enemy_x_offset = 224;
+	uint8_t enemy_y_offset = 56 - int8_t(player.pos.y) + PPU466::ScreenHeight / 2 - 4;
+	for (uint8_t i = 0; i < 64; i++) {
+		if (i > 0 && i % 4 == 0) {
+			enemy_x_offset = 224;
+			enemy_y_offset += 8;
+		}
+
+		if (enemy_ignore_idx.count(i) == 0) {
+			ppu.sprites[sprite_idx].x = enemy_x_offset;
+			ppu.sprites[sprite_idx].y = enemy_y_offset;
+			ppu.sprites[sprite_idx].index = ENEMY_TILE_IDX + i;
+			ppu.sprites[sprite_idx].attributes = ENEMY_PALETTE_IDX;
+			sprite_idx++;
+		}
+
+		enemy_x_offset += 8;
 	}
 
 	//--- actually draw ---
