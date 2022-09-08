@@ -1,5 +1,7 @@
 #include "Player.hpp"
 
+#include "data_path.hpp"
+
 
 bool Player::check_collide(PPU466::Tile projectile, glm::vec2 ppos) {
 	//Simple collision checker that overlaps the player tile with projectile tile
@@ -16,6 +18,6 @@ bool Player::check_collide(PPU466::Tile projectile, glm::vec2 ppos) {
 
 const TileSet *player_load_function() {
 	//Load the player tileset
-	const TileSet *ts(new TileSet("resources/ppu4_player.csv"));
+	const TileSet *ts(new TileSet(data_path("resources/ppu4_player.csv")));
 	return ts;
 }

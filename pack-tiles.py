@@ -69,7 +69,7 @@ def bitpack(tile):
     return packed
 
 def convert(asset_name):
-    tiles, palette = img_to_tiles('resources/%s.png' % asset_name)
+    tiles, palette = img_to_tiles('assets/%s.png' % asset_name)
     # tiles and palettes are stored in csv format since it's easier to work
     # with than binary format. All 2-day arrays get flattened in the process,
     # with palette on the first line and tiles in the following lines
@@ -82,7 +82,7 @@ def convert(asset_name):
             ','.join([str(i) for i in bitpack(tile)])
         ]) for tile in tiles
     ])
-    with open('resources/ppu4_%s.csv' % asset_name, 'w+') as file:
+    with open('dist/resources/ppu4_%s.csv' % asset_name, 'w+') as file:
         file.write(palette_str)
         file.write('\n')
         file.write(tiles_str)

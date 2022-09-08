@@ -118,6 +118,7 @@ PlayMode::PlayMode() {
 }
 
 PlayMode::~PlayMode() {
+	//Ideally, should not delete here since wasn't allocated here. This works though...
 	delete (const TileSet *)player_tileset;
 }
 
