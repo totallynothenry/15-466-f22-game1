@@ -1,5 +1,10 @@
 #include "PlayMode.hpp"
 
+#include "Load.hpp"
+#include "Player.hpp"
+#include "TileSet.hpp"
+
+
 //for the GL_ERRORS() macro:
 #include "gl_errors.hpp"
 
@@ -8,7 +13,15 @@
 
 #include <random>
 
+
+Load< TileSet > player_tileset(LoadTagDefault, player_load_function);
+
+
 PlayMode::PlayMode() {
+	{ //Setup player tile and palette
+		ppu.tile_table[32] = player_tileset->tiles[0];
+		ppu.palette_table[7] = player_tileset->palette;
+	}
 	//TODO:
 	// you *must* use an asset pipeline of some sort to generate tiles.
 	// don't hardcode them like this!
@@ -49,26 +62,26 @@ PlayMode::PlayMode() {
 	}
 
 	//use sprite 32 as a "player":
-	ppu.tile_table[32].bit0 = {
-		0b01111110,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b01111110,
-	};
-	ppu.tile_table[32].bit1 = {
-		0b00000000,
-		0b00000000,
-		0b00011000,
-		0b00100100,
-		0b00000000,
-		0b00100100,
-		0b00000000,
-		0b00000000,
-	};
+	// ppu.tile_table[32].bit0 = {
+	// 	0b01111110,
+	// 	0b11111111,
+	// 	0b11111111,
+	// 	0b11111111,
+	// 	0b11111111,
+	// 	0b11111111,
+	// 	0b11111111,
+	// 	0b01111110,
+	// };
+	// ppu.tile_table[32].bit1 = {
+	// 	0b00000000,
+	// 	0b00000000,
+	// 	0b00011000,
+	// 	0b00100100,
+	// 	0b00000000,
+	// 	0b00100100,
+	// 	0b00000000,
+	// 	0b00000000,
+	// };
 
 	//makes the outside of tiles 0-16 solid:
 	ppu.palette_table[0] = {
@@ -87,12 +100,12 @@ PlayMode::PlayMode() {
 	};
 
 	//used for the player:
-	ppu.palette_table[7] = {
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0xff, 0xff, 0x00, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	};
+	// ppu.palette_table[7] = {
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
+	// 	glm::u8vec4(0xff, 0xff, 0x00, 0xff),
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+	// 	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+	// };
 
 	//used for the misc other sprites:
 	ppu.palette_table[6] = {
@@ -105,6 +118,7 @@ PlayMode::PlayMode() {
 }
 
 PlayMode::~PlayMode() {
+	delete (const TileSet *)player_tileset;
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {

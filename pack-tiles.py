@@ -57,13 +57,13 @@ def bitpack(tile):
     '''
     Bitpack an 8x8 uint2 tile into 2 arrays of 8 uint8
     '''
-    binary = np.unpackbits(tile[..., None], axis=2)[:,:,6:] # 8x8x2 bits
+    binary = np.unpackbits(tile[:, ::-1, None], axis=2)[:,:,6:] # 8x8x2 bits
     if DEBUG:
         print(binary[:,:,0])
         print(binary[:,:,1])
     bit0 = np.packbits(binary[:,:,0], axis=1).flatten()
     bit1 = np.packbits(binary[:,:,1], axis=1).flatten()
-    packed = np.vstack([bit0, bit1])
+    packed = np.hstack([bit0, bit1])
     if DEBUG:
         print(packed)
     return packed
@@ -77,14 +77,14 @@ def convert(asset_name):
         ','.join([str(i) for i in row]) for row in palette
     ])
 
-    tiles_str = '\n\n'.join([
+    tiles_str = '\n'.join([
         '\n'.join([
-            ','.join([str(i) for i in row]) for row in bitpack(tile)
+            ','.join([str(i) for i in bitpack(tile)])
         ]) for tile in tiles
     ])
     with open('resources/ppu4_%s.csv' % asset_name, 'w+') as file:
         file.write(palette_str)
-        file.write('\n\n')
+        file.write('\n')
         file.write(tiles_str)
 
 
