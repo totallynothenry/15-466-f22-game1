@@ -15,5 +15,5 @@ struct Player {
 
 	float speed = 45.0f;
 	float invul = 0.0f;
-	int hitpoints = 3;
+	int hitpoints = 10;
 };

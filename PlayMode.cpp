@@ -354,6 +354,12 @@ void PlayMode::update(float elapsed) {
 		projectile.vel = get_projectile_vel(projectile.type);
 		projectile.update_cnt = 0;
 		projectile.hidden = false;
+
+		//There is no spawning of HugeLaser/Warn due to time constrainted. It was
+		//planned to be a special attack pattern where all other attacks pause, warning
+		//signs appear on several lanes, which are flooded with HugeLaser projectiles.
+		//The current game should sufficiently exercise the asset pipeline so this
+		//feature has been omitted for the submission.
 	}
 
 	player.update(left.pressed, right.pressed, down.pressed, up.pressed, elapsed);

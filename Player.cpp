@@ -66,6 +66,10 @@ bool Player::check_collide(Projectile &projectile) {
 	if (collide && projectile.type != Projectile::Type::BombReflect) {
 		invul = 3;
 		hitpoints--;
+		//This doesn't actually affect anything right now so that the grader can
+		//continue playing without needing to restart the exe (and also due to time
+		//constraints). Similarly, there is no victory state and you can keep lobbing
+		//bombs at the mothership for as long as you want.
 	}
 
 	return collide;
